@@ -89,6 +89,7 @@ public:
 
     int getInstanceID() { return instanceID; }
     int getConsoleType() { return consoleType; }
+    std::string getBaseROMName() const { return baseROMName; }
     EmuThread* getEmuThread() { return emuThread; }
     melonDS::NDS* getNDS() { return nds; }
 
