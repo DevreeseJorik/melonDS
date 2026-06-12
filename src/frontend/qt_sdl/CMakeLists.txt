@@ -33,6 +33,7 @@ set(SOURCES_QT_SDL
     RAMInfoDialog.cpp
     ARMDisassembler.cpp
     DebuggerDialog.cpp
+    HexEditorDialog.cpp
     TitleManagerDialog.cpp
     OSD_shaders.h
     font.h
