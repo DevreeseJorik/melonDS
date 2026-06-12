@@ -311,6 +311,20 @@ void EmuThread::run()
                 nlines = emuInstance->nds->RunFrame();
             }
 
+            emit debugFrameComplete();
+
+            if (emuInstance->nds->NativeBreakHit)
+            {
+                quint32 bpAddr = emuInstance->nds->NativeBreakPC;
+                int     bpCpu  = emuInstance->nds->NativeBreakCPU;
+                emuPauseStack++;
+                prevEmuStatus = emuStatus;
+                emuStatus = emuStatus_Paused;
+                emuInstance->audioDisable();
+                emit windowEmuPause(true);
+                emit debugBreakHit(bpAddr, bpCpu);
+            }
+
             if (emuInstance->ndsSave)
                 emuInstance->ndsSave->CheckFlush();
 
@@ -521,6 +535,13 @@ void EmuThread::handleMessages()
                 emuInstance->audioEnable();
                 emit windowEmuPause(false);
                 emuInstance->osdAddMessage(0, "Resumed");
+                if (emuInstance->nds->NativeBreakHit)
+                {
+                    emuInstance->nds->ARM9.Halt(0);
+                    emuInstance->nds->ARM7.Halt(0);
+                    emuInstance->nds->NativeBreakHit = false;
+                }
+                emuInstance->nds->NativeStepMode = false;
             }
             break;
 
@@ -536,6 +557,27 @@ void EmuThread::handleMessages()
 
         case msg_EmuFrameStep:
             emuStatus = emuStatus_FrameStep;
+            break;
+
+        case msg_NativeDbgStep:
+            if (emuInstance->nds && emuInstance->nds->NativeBreakHit)
+            {
+                int cpu = emuInstance->nds->NativeBreakCPU;
+                emuInstance->nds->NativeStepMode = true;
+                emuInstance->nds->NativeBreakHit = false;
+                if (cpu == 0)
+                {
+                    emuInstance->nds->ARM9.NativeDbgSingleStep = true;
+                    emuInstance->nds->ARM9.Halt(0);
+                }
+                else
+                {
+                    emuInstance->nds->ARM7.NativeDbgSingleStep = true;
+                    emuInstance->nds->ARM7.Halt(0);
+                }
+                emuPauseStack--;
+                emuStatus = emuStatus_Running;
+            }
             break;
 
         case msg_EmuReset:
@@ -746,6 +788,12 @@ void EmuThread::emuFrameStep()
         sendMessage(msg_EmuPause);
     sendMessage(msg_EmuFrameStep);
     waitAllMessages();
+}
+
+void EmuThread::emuNativeDbgStep()
+{
+    sendMessage(msg_NativeDbgStep);
+    waitMessage();
 }
 
 void EmuThread::emuReset()

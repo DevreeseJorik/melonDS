@@ -64,6 +64,7 @@ public:
         msg_EmuStop,
         msg_EmuFrameStep,
         msg_EmuReset,
+        msg_NativeDbgStep,
 
         msg_InitGL,
         msg_DeInitGL,
@@ -112,6 +113,7 @@ public:
     void emuExit();
     void emuFrameStep();
     void emuReset();
+    void emuNativeDbgStep();
 
     int bootROM(const QStringList& filename, QString& errorstr);
     int bootFirmware(QString& errorstr);
@@ -159,6 +161,10 @@ signals:
     void screenEmphasisToggle();
 
     void syncVolumeLevel();
+
+    void debugFrameComplete();
+
+    void debugBreakHit(quint32 addr, int cpu);
 
 private:
     void handleMessages();
