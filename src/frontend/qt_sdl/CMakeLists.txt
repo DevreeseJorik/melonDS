@@ -34,6 +34,7 @@ set(SOURCES_QT_SDL
     ARMDisassembler.cpp
     DebuggerDialog.cpp
     HexEditorDialog.cpp
+    TraceLoggerDialog.cpp
     TitleManagerDialog.cpp
     OSD_shaders.h
     font.h
