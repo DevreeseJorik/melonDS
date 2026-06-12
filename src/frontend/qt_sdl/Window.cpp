@@ -57,6 +57,9 @@
 #include "InterfaceSettingsDialog.h"
 #include "ROMInfoDialog.h"
 #include "RAMInfoDialog.h"
+#include "DebuggerDialog.h"
+#include "HexEditorDialog.h"
+#include "TraceLoggerDialog.h"
 #include "TitleManagerDialog.h"
 #include "PowerManagement/PowerManagementDialog.h"
 
@@ -405,6 +408,15 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
                 actRAMInfo = menu->addAction("RAM search");
                 connect(actRAMInfo, &QAction::triggered, this, &MainWindow::onRAMInfo);
 
+                actDebugger = menu->addAction("Debugger");
+                connect(actDebugger, &QAction::triggered, this, &MainWindow::onOpenDebugger);
+
+                actHexEditor = menu->addAction("Hex Editor");
+                connect(actHexEditor, &QAction::triggered, this, &MainWindow::onOpenHexEditor);
+
+                actTraceLogger = menu->addAction("Trace Logger");
+                connect(actTraceLogger, &QAction::triggered, this, &MainWindow::onOpenTraceLogger);
+
                 actTitleManager = menu->addAction("Manage DSi titles");
                 connect(actTitleManager, &QAction::triggered, this, &MainWindow::onOpenTitleManager);
             }
@@ -698,6 +710,9 @@ MainWindow::MainWindow(int id, EmuInstance* inst, QWidget* parent) :
 
         actROMInfo->setEnabled(false);
         actRAMInfo->setEnabled(false);
+        actDebugger->setEnabled(false);
+        actHexEditor->setEnabled(false);
+        actTraceLogger->setEnabled(false);
 
         actScreenRotation[windowCfg.GetInt("ScreenRotation")]->setChecked(true);
 
@@ -1302,6 +1317,9 @@ void MainWindow::updateCartInserted(bool gba)
             win->actSetupCheats->setEnabled(inserted);
             win->actROMInfo->setEnabled(inserted);
             win->actRAMInfo->setEnabled(inserted);
+            win->actDebugger->setEnabled(inserted);
+            win->actHexEditor->setEnabled(inserted);
+            win->actTraceLogger->setEnabled(inserted);
         });
     }
 }
@@ -1729,6 +1747,21 @@ void MainWindow::onROMInfo()
 void MainWindow::onRAMInfo()
 {
     RAMInfoDialog* dlg = RAMInfoDialog::openDlg(this);
+}
+
+void MainWindow::onOpenDebugger()
+{
+    DebuggerDialog::openDlg(emuInstance, this);
+}
+
+void MainWindow::onOpenHexEditor()
+{
+    HexEditorDialog::openDlg(emuInstance, this);
+}
+
+void MainWindow::onOpenTraceLogger()
+{
+    TraceLoggerDialog::openDlg(emuInstance, this);
 }
 
 void MainWindow::onOpenTitleManager()
