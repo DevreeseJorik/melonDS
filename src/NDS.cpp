@@ -965,7 +965,7 @@ u32 NDS::RunFrame()
         }
         else
         {
-            if (cpuMode == CPUExecuteMode::InterpreterGDB)
+            if (cpuMode == CPUExecuteMode::InterpreterDebug)
             {
                 ARM9.CheckGdbIncoming();
                 ARM7.CheckGdbIncoming();
@@ -1059,6 +1059,23 @@ u32 NDS::RunFrame()
         break;
     }
 
+    for (auto& fv : FrozenValues) {
+        if (!fv.Active) continue;
+        if (fv.IsARM9) {
+            switch (fv.Size) {
+                case 1: ARM9Write8(fv.Addr, (u8)fv.Value); break;
+                case 2: ARM9Write16(fv.Addr, (u16)fv.Value); break;
+                case 4: ARM9Write32(fv.Addr, fv.Value); break;
+            }
+        } else {
+            switch (fv.Size) {
+                case 1: ARM7Write8(fv.Addr, (u8)fv.Value); break;
+                case 2: ARM7Write16(fv.Addr, (u16)fv.Value); break;
+                case 4: ARM7Write32(fv.Addr, fv.Value); break;
+            }
+        }
+    }
+
     // Ensure the last audio samples produced for this frame are available to the frontend immediately
     SPU.BufferAudio();
 
@@ -1081,10 +1098,14 @@ u32 NDS::RunFrame()
         return RunFrame<CPUExecuteMode::JIT>();
     else
 #endif
+    if (NativeDebugEnabled || TraceEnabled)
+    {
+        return RunFrame<CPUExecuteMode::InterpreterDebug>();
+    } else
 #ifdef GDBSTUB_ENABLED
     if (EnableGDBStub)
     {
-        return RunFrame<CPUExecuteMode::InterpreterGDB>();
+        return RunFrame<CPUExecuteMode::InterpreterDebug>();
     } else
 #endif
     {

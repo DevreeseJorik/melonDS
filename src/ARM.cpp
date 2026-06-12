@@ -34,6 +34,45 @@ namespace melonDS
 using Platform::Log;
 using Platform::LogLevel;
 
+void ARM::NativeTraceLog(u32 addr, NativeBpType accessType)
+{
+    if (!NDS.TraceEnabled || !NDS.TraceLogger) return;
+    NDS.TraceLogger(Num, addr, accessType, R, CPSR);
+}
+
+void ARM::NativeDbgCheck(u32 addr, NativeBpType accessType)
+{
+    NativeTraceLog(addr, accessType);
+    if (!NDS.NativeDebugEnabled || NDS.NativeBreakpoints.empty()) return;
+    for (auto& bp : NDS.NativeBreakpoints)
+    {
+        if (bp.Addr != addr) continue;
+        bool hit = false;
+        switch (bp.Type)
+        {
+        case nativeBp_Execute:   hit = accessType == nativeBp_Execute;                   break;
+        case nativeBp_Read:      hit = accessType == nativeBp_Read;                      break;
+        case nativeBp_Write:     hit = accessType == nativeBp_Write;                     break;
+        case nativeBp_ReadWrite: hit = accessType == nativeBp_Read
+                                    || accessType == nativeBp_Write;                     break;
+        }
+        if (!hit) continue;
+        NDS.NativeBreakHit   = true;
+        NDS.NativeBreakPC    = R[15] - ((CPSR & 0x20) ? 2 : 4);
+        NDS.NativeBreakCPU   = Num;
+        NDS.NativeBreakThumb = (CPSR & 0x20) != 0;
+        if (accessType != nativeBp_Execute)
+        {
+            // R/W bps fire from inside an instruction — halt inline
+            Halt(1);
+            NDS.ARM9Timestamp = NDS.ARM9Target;
+            NDS.ARM7.Halt(1);
+            NDS.ARM7Timestamp = NDS.ARM7Target;
+        }
+        return;
+    }
+}
+
 #ifdef GDBSTUB_ENABLED
 void ARM::GdbCheckA()
 {
@@ -71,6 +110,38 @@ void ARM::GdbCheckA() {}
 void ARM::GdbCheckB() {}
 void ARM::GdbCheckC() {}
 #endif
+
+void ARM::ExecDbgCheck()
+{
+    u32 pc_real = R[15] - ((CPSR & 0x20) ? 2 : 4);
+
+    if (NativeDbgSingleStep)
+    {
+        NativeDbgSingleStep = false;
+        GdbCheckC();
+        return;
+    }
+
+    NativeDbgCheck(pc_real, nativeBp_Execute);
+
+    if (NDS.NativeBreakHit || NDS.NativeStepMode)
+    {
+        if (!NDS.NativeBreakHit)
+        {
+            NDS.NativeBreakHit   = true;
+            NDS.NativeBreakPC    = pc_real;
+            NDS.NativeBreakCPU   = Num;
+            NDS.NativeBreakThumb = (CPSR & 0x20) != 0;
+        }
+        Halt(1);
+        NDS.ARM9Timestamp = NDS.ARM9Target;
+        NDS.ARM7.Halt(1);
+        NDS.ARM7Timestamp = NDS.ARM7Target;
+        return;
+    }
+
+    GdbCheckC();
+}
 
 
 // instruction timing notes
@@ -592,8 +663,15 @@ void ARM::CheckGdbIncoming()
 template <CPUExecuteMode mode>
 void ARMv5::Execute()
 {
-    if constexpr (mode == CPUExecuteMode::InterpreterGDB)
+    if constexpr (mode == CPUExecuteMode::InterpreterDebug)
+    {
+        if (NDS.NativeBreakHit)
+        {
+            NDS.ARM9Timestamp = NDS.ARM9Target;
+            return;
+        }
         GdbCheckB();
+    }
 
     if (Halted)
     {
@@ -659,8 +737,11 @@ void ARMv5::Execute()
         {
             if (CPSR & 0x20) // THUMB
             {
-                if constexpr (mode == CPUExecuteMode::InterpreterGDB)
-                    GdbCheckC();
+                if constexpr (mode == CPUExecuteMode::InterpreterDebug)
+                {
+                    ExecDbgCheck();
+                    if (Halted) break;
+                }
 
                 // prefetch
                 R[15] += 2;
@@ -675,8 +756,11 @@ void ARMv5::Execute()
             }
             else
             {
-                if constexpr (mode == CPUExecuteMode::InterpreterGDB)
-                    GdbCheckC();
+                if constexpr (mode == CPUExecuteMode::InterpreterDebug)
+                {
+                    ExecDbgCheck();
+                    if (Halted) break;
+                }
 
                 // prefetch
                 R[15] += 4;
@@ -712,7 +796,7 @@ void ARMv5::Execute()
                 if (NDS::IME[0] & 0x1)
                     TriggerIRQ();
             }*/
-            if (IRQ) TriggerIRQ();
+            if (IRQ && !NDS.NativeStepMode) TriggerIRQ();
 
         }
 
@@ -724,7 +808,7 @@ void ARMv5::Execute()
         Halted = 0;
 }
 template void ARMv5::Execute<CPUExecuteMode::Interpreter>();
-template void ARMv5::Execute<CPUExecuteMode::InterpreterGDB>();
+template void ARMv5::Execute<CPUExecuteMode::InterpreterDebug>();
 #ifdef JIT_ENABLED
 template void ARMv5::Execute<CPUExecuteMode::JIT>();
 #endif
@@ -732,8 +816,15 @@ template void ARMv5::Execute<CPUExecuteMode::JIT>();
 template <CPUExecuteMode mode>
 void ARMv4::Execute()
 {
-    if constexpr (mode == CPUExecuteMode::InterpreterGDB)
+    if constexpr (mode == CPUExecuteMode::InterpreterDebug)
+    {
+        if (NDS.NativeBreakHit)
+        {
+            NDS.ARM7Timestamp = NDS.ARM7Target;
+            return;
+        }
         GdbCheckB();
+    }
 
     if (Halted)
     {
@@ -798,8 +889,11 @@ void ARMv4::Execute()
         {
             if (CPSR & 0x20) // THUMB
             {
-                if constexpr (mode == CPUExecuteMode::InterpreterGDB)
-                    GdbCheckC();
+                if constexpr (mode == CPUExecuteMode::InterpreterDebug)
+                {
+                    ExecDbgCheck();
+                    if (Halted) break;
+                }
 
                 // prefetch
                 R[15] += 2;
@@ -813,8 +907,11 @@ void ARMv4::Execute()
             }
             else
             {
-                if constexpr (mode == CPUExecuteMode::InterpreterGDB)
-                    GdbCheckC();
+                if constexpr (mode == CPUExecuteMode::InterpreterDebug)
+                {
+                    ExecDbgCheck();
+                    if (Halted) break;
+                }
 
                 // prefetch
                 R[15] += 4;
@@ -846,7 +943,7 @@ void ARMv4::Execute()
                 if (NDS::IME[1] & 0x1)
                     TriggerIRQ();
             }*/
-            if (IRQ) TriggerIRQ();
+            if (IRQ && !NDS.NativeStepMode) TriggerIRQ();
         }
 
         NDS.ARM7Timestamp += Cycles;
@@ -866,7 +963,7 @@ void ARMv4::Execute()
 }
 
 template void ARMv4::Execute<CPUExecuteMode::Interpreter>();
-template void ARMv4::Execute<CPUExecuteMode::InterpreterGDB>();
+template void ARMv4::Execute<CPUExecuteMode::InterpreterDebug>();
 #ifdef JIT_ENABLED
 template void ARMv4::Execute<CPUExecuteMode::JIT>();
 #endif
@@ -1121,6 +1218,7 @@ u32 ARMv5::ReadMem(u32 addr, int size)
 
 void ARMv4::DataRead8(u32 addr, u32* val)
 {
+    NativeDbgCheck(addr, nativeBp_Read);
     *val = BusRead8(addr);
     DataRegion = addr;
     DataCycles = NDS.ARM7MemTimings[addr >> 15][0];
@@ -1129,7 +1227,7 @@ void ARMv4::DataRead8(u32 addr, u32* val)
 void ARMv4::DataRead16(u32 addr, u32* val)
 {
     addr &= ~1;
-
+    NativeDbgCheck(addr, nativeBp_Read);
     *val = BusRead16(addr);
     DataRegion = addr;
     DataCycles = NDS.ARM7MemTimings[addr >> 15][0];
@@ -1138,7 +1236,7 @@ void ARMv4::DataRead16(u32 addr, u32* val)
 void ARMv4::DataRead32(u32 addr, u32* val)
 {
     addr &= ~3;
-
+    NativeDbgCheck(addr, nativeBp_Read);
     *val = BusRead32(addr);
     DataRegion = addr;
     DataCycles = NDS.ARM7MemTimings[addr >> 15][2];
@@ -1147,13 +1245,14 @@ void ARMv4::DataRead32(u32 addr, u32* val)
 void ARMv4::DataRead32S(u32 addr, u32* val)
 {
     addr &= ~3;
-
+    NativeDbgCheck(addr, nativeBp_Read);
     *val = BusRead32(addr);
     DataCycles += NDS.ARM7MemTimings[addr >> 15][3];
 }
 
 void ARMv4::DataWrite8(u32 addr, u8 val)
 {
+    NativeDbgCheck(addr, nativeBp_Write);
     BusWrite8(addr, val);
     DataRegion = addr;
     DataCycles = NDS.ARM7MemTimings[addr >> 15][0];
@@ -1162,7 +1261,7 @@ void ARMv4::DataWrite8(u32 addr, u8 val)
 void ARMv4::DataWrite16(u32 addr, u16 val)
 {
     addr &= ~1;
-
+    NativeDbgCheck(addr, nativeBp_Write);
     BusWrite16(addr, val);
     DataRegion = addr;
     DataCycles = NDS.ARM7MemTimings[addr >> 15][0];
@@ -1171,7 +1270,7 @@ void ARMv4::DataWrite16(u32 addr, u16 val)
 void ARMv4::DataWrite32(u32 addr, u32 val)
 {
     addr &= ~3;
-
+    NativeDbgCheck(addr, nativeBp_Write);
     BusWrite32(addr, val);
     DataRegion = addr;
     DataCycles = NDS.ARM7MemTimings[addr >> 15][2];

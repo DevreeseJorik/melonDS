@@ -23,6 +23,8 @@
 #include <string>
 #include <optional>
 #include <functional>
+#include <vector>
+#include <stdio.h>
 
 #include "Platform.h"
 #include "Savestate.h"
@@ -258,6 +260,29 @@ private:
 
 public: // TODO: Encapsulate the rest of these members
     void* UserData;
+
+    // Native debugger support
+    bool NativeDebugEnabled = false;
+    bool NativeBreakHit = false;
+    u32  NativeBreakPC    = 0;
+    int  NativeBreakCPU   = 0;
+    bool NativeBreakThumb = false;
+    bool NativeStepMode   = false;
+
+    std::vector<NativeBpEntry> NativeBreakpoints;
+
+    using TraceLogFn = std::function<void(int cpu, u32 addr, NativeBpType type, const u32* regs, u32 cpsr)>;
+    bool       TraceEnabled = false;
+    TraceLogFn TraceLogger;
+
+    struct FrozenMemVal {
+        u32  Addr;
+        u32  Value;
+        int  Size;
+        bool IsARM9;
+        bool Active;
+    };
+    std::vector<FrozenMemVal> FrozenValues;
 
     int ConsoleType;
     int CurCPU;
