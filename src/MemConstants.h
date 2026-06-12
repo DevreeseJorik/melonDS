@@ -23,9 +23,24 @@
 
 namespace melonDS
 {
+// NDS memory map base addresses
+constexpr u32 MainRAMBase    = 0x02000000;
+constexpr u32 SharedWRAMBase = 0x03000000;
+constexpr u32 ARM7WRAMBase   = 0x03800000;
+constexpr u32 IORegsBase     = 0x04000000;
+constexpr u32 PaletteRAMBase = 0x05000000;
+constexpr u32 VRAMBase       = 0x06000000;
+constexpr u32 OAMBase        = 0x07000000;
+constexpr u32 ARM9BIOSBase   = 0xFFFF0000;
+
+// NDS memory map sizes
 constexpr u32 MainRAMMaxSize = 0x1000000;
 constexpr u32 SharedWRAMSize = 0x8000;
 constexpr u32 ARM7WRAMSize = 0x10000;
+constexpr u32 IORegsViewSize = 0x00001000;
+constexpr u32 PaletteRAMSize = 0x00000800;
+constexpr u32 VRAMSize       = 0x00100000;
+constexpr u32 OAMSize        = 0x00000800;
 constexpr u32 NWRAMSize = 0x40000;
 constexpr u32 ARM9BIOSSize = 0x1000;
 constexpr u32 ARM7BIOSSize = 0x4000;
