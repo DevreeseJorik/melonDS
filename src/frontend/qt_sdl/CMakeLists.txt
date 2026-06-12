@@ -31,6 +31,7 @@ set(SOURCES_QT_SDL
     InterfaceSettingsDialog.cpp
     ROMInfoDialog.cpp
     RAMInfoDialog.cpp
+    ARMDisassembler.cpp
     TitleManagerDialog.cpp
     OSD_shaders.h
     font.h
