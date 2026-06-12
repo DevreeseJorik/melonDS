@@ -46,10 +46,23 @@ enum
 enum class CPUExecuteMode : u32
 {
     Interpreter,
-    InterpreterGDB,
+    InterpreterDebug,
 #ifdef JIT_ENABLED
     JIT
 #endif
+};
+
+enum NativeBpType
+{
+    nativeBp_Execute   = 0,
+    nativeBp_Read      = 1,
+    nativeBp_Write     = 2,
+    nativeBp_ReadWrite = 3,
+};
+struct NativeBpEntry
+{
+    u32          Addr;
+    NativeBpType Type;
 };
 
 struct GDBArgs;
@@ -196,6 +209,9 @@ public:
 #endif
 
     melonDS::NDS& NDS;
+
+    bool NativeDbgSingleStep = false;
+
 protected:
     virtual u8 BusRead8(u32 addr) = 0;
     virtual u16 BusRead16(u32 addr) = 0;
@@ -227,6 +243,9 @@ protected:
     void GdbCheckA();
     void GdbCheckB();
     void GdbCheckC();
+    void ExecDbgCheck();
+    void NativeDbgCheck(u32 addr, NativeBpType accessType);
+    void NativeTraceLog(u32 addr, NativeBpType accessType);
 };
 
 class ARMv5 : public ARM
