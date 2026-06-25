@@ -32,6 +32,7 @@ set(SOURCES_QT_SDL
     ROMInfoDialog.cpp
     RAMInfoDialog.cpp
     ARMDisassembler.cpp
+    ControlServer.cpp
     DebuggerDialog.cpp
     HexEditorDialog.cpp
     TraceLoggerDialog.cpp

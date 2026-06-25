@@ -57,6 +57,7 @@ public:
 
     bool winHasMenu() { return hasMenu; }
 
+    void updateCartInserted(bool gba);
     void saveEnabled(bool enabled);
 
     void toggleFullscreen();
@@ -200,7 +201,6 @@ private:
     bool verifySetup();
     QString pickFileFromArchive(QString archiveFileName);
     QStringList pickROM(bool gba);
-    void updateCartInserted(bool gba);
 
     void createScreenPanel();
 

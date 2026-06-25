@@ -35,6 +35,7 @@
 #include "ArchiveUtil.h"
 #endif
 #include "EmuInstance.h"
+#include "ControlServer.h"
 #include "Config.h"
 #include "Platform.h"
 #include "Net.h"
@@ -143,6 +144,13 @@ EmuInstance::EmuInstance(int inst) : deleting(false),
 
     emuThread->start();
 
+    ctrlServer = new ControlServer(this);
+    QObject::connect(emuThread, &EmuThread::debugBreakHit,  ctrlServer, &ControlServer::onBreakHit,  Qt::QueuedConnection);
+    QObject::connect(emuThread, &EmuThread::windowEmuStart, ctrlServer, &ControlServer::onEmuStart,  Qt::QueuedConnection);
+    QObject::connect(emuThread, &EmuThread::windowEmuStop,  ctrlServer, &ControlServer::onEmuStop,   Qt::QueuedConnection);
+    QObject::connect(emuThread, &EmuThread::windowEmuPause, ctrlServer, &ControlServer::onEmuPause,  Qt::QueuedConnection);
+    ctrlServer->start();
+
     // if any extra windows were saved as enabled, open them
     for (int i = 1; i < kMaxWindows; i++)
     {
@@ -157,6 +165,9 @@ EmuInstance::~EmuInstance()
 {
     deleting = true;
     deleteAllWindows();
+
+    delete ctrlServer;
+    ctrlServer = nullptr;
 
     emuThread->emuExit();
     emuThread->wait();
