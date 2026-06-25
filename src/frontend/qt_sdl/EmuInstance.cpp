@@ -149,7 +149,7 @@ EmuInstance::EmuInstance(int inst) : deleting(false),
     QObject::connect(emuThread, &EmuThread::windowEmuStart, ctrlServer, &ControlServer::onEmuStart,  Qt::QueuedConnection);
     QObject::connect(emuThread, &EmuThread::windowEmuStop,  ctrlServer, &ControlServer::onEmuStop,   Qt::QueuedConnection);
     QObject::connect(emuThread, &EmuThread::windowEmuPause, ctrlServer, &ControlServer::onEmuPause,  Qt::QueuedConnection);
-    ctrlServer->start();
+    ctrlServer->start((quint16)globalCfg.GetInt("ControlServer.Port"));
 
     // if any extra windows were saved as enabled, open them
     for (int i = 1; i < kMaxWindows; i++)
