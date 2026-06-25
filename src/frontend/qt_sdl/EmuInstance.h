@@ -20,6 +20,7 @@
 #define EMUINSTANCE_H
 
 #include <SDL2/SDL.h>
+#include <atomic>
 
 #include "Platform.h"
 #include "main.h"
@@ -79,6 +80,8 @@ enum
 
 bool isRightModKey(QKeyEvent* event);
 int getEventKeyVal(QKeyEvent* event);
+
+class ControlServer;
 
 class EmuInstance
 {
@@ -289,6 +292,12 @@ private:
 
     // HACK
 public:
+    // Remote control input (written by ControlServer on Qt thread, read by EmuThread)
+    std::atomic<uint32_t> remoteButtonMask{0xFFF}; // active-low; 0xFFF = all released
+    std::atomic<bool>     remoteTouchActive{false};
+    std::atomic<uint16_t> remoteTouchX{0};
+    std::atomic<uint16_t> remoteTouchY{0};
+
     std::unique_ptr<SaveManager> ndsSave;
     std::unique_ptr<SaveManager> gbaSave;
     std::unique_ptr<SaveManager> firmwareSave;
@@ -375,6 +384,9 @@ private:
 
     friend class EmuThread;
     friend class MainWindow;
+    friend class ControlServer;
+
+    ControlServer* ctrlServer = nullptr;
 };
 
 #endif //EMUINSTANCE_H
