@@ -254,8 +254,14 @@ void EmuThread::run()
             // process input and hotkeys
             emuInstance->nds->SetKeyMask(emuInstance->inputMask);
 
-            if (emuInstance->isTouching)
-                emuInstance->nds->TouchScreen(emuInstance->touchX, emuInstance->touchY);
+            if (emuInstance->isTouching || emuInstance->remoteTouchActive.load(std::memory_order_relaxed))
+            {
+                u16 tx = emuInstance->isTouching ? emuInstance->touchX
+                                                 : emuInstance->remoteTouchX.load(std::memory_order_relaxed);
+                u16 ty = emuInstance->isTouching ? emuInstance->touchY
+                                                 : emuInstance->remoteTouchY.load(std::memory_order_relaxed);
+                emuInstance->nds->TouchScreen(tx, ty);
+            }
             else
                 emuInstance->nds->ReleaseScreen();
 

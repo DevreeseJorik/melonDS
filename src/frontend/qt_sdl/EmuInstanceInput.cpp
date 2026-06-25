@@ -443,7 +443,7 @@ void EmuInstance::inputProcess()
                 joyInputMask &= ~(1 << i);
     }
 
-    inputMask = keyInputMask & joyInputMask;
+    inputMask = keyInputMask & joyInputMask & remoteButtonMask.load(std::memory_order_relaxed);
 
     joyHotkeyMask = 0;
     if (joystick)
