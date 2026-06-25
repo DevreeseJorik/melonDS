@@ -72,6 +72,7 @@ DefaultList<int> DefaultInts =
     {"Instance*.Gdb.ARM9.Port", 3333},
 #endif
     {"LAN.HostNumPlayers", 16},
+    {"ControlServer.Port", 63742},
 };
 
 RangeList IntRanges =
@@ -91,6 +92,7 @@ RangeList IntRanges =
     {"Instance*.Window*.ScreenAspectBot", {0, AspectRatiosNum-1}},
     {"MP.AudioMode", {0, 2}},
     {"LAN.HostNumPlayers", {2, 16}},
+    {"ControlServer.Port", {1024, 65535}},
 };
 
 DefaultList<bool> DefaultBools =
