@@ -57,10 +57,10 @@ void ARM::NativeDbgCheck(u32 addr, NativeBpType accessType)
                                     || accessType == nativeBp_Write;                     break;
         }
         if (!hit) continue;
-        NDS.NativeBreakHit   = true;
         NDS.NativeBreakPC    = R[15] - ((CPSR & 0x20) ? 2 : 4);
         NDS.NativeBreakCPU   = Num;
         NDS.NativeBreakThumb = (CPSR & 0x20) != 0;
+        NDS.NativeBreakHit   = true;
         if (accessType != nativeBp_Execute)
         {
             // R/W bps fire from inside an instruction — halt inline
@@ -128,10 +128,10 @@ void ARM::ExecDbgCheck()
     {
         if (!NDS.NativeBreakHit)
         {
-            NDS.NativeBreakHit   = true;
             NDS.NativeBreakPC    = pc_real;
             NDS.NativeBreakCPU   = Num;
             NDS.NativeBreakThumb = (CPSR & 0x20) != 0;
+            NDS.NativeBreakHit   = true;
         }
         Halt(1);
         NDS.ARM9Timestamp = NDS.ARM9Target;
