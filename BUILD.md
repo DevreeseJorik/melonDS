@@ -24,6 +24,11 @@
    cmake -B build
    cmake --build build -j$(nproc --all)
    ```
+   For debug builds (GDB stub, debugger, socket connection) use
+   ```bash
+   cmake -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_GDBSTUB=ON
+   cmake --build build -j$(nproc --all)
+   ```
 
 ## Windows
 1. Install [MSYS2](https://www.msys2.org/)
