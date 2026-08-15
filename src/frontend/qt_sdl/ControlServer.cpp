@@ -89,11 +89,19 @@ bool ControlServer::start(quint16 port)
 {
     Server = new QTcpServer(this);
     connect(Server, &QTcpServer::newConnection, this, &ControlServer::onNewConnection);
-    if (!Server->listen(QHostAddress::LocalHost, port))
+
+    // Bind to explicit loopback addresses; QHostAddress::LocalHost can resolve to
+    // either IPv4 or IPv6 depending on the platform, while the harness commonly talks
+    // to 127.0.0.1. Keep both addresses supported so the TCP control server stays
+    // reachable from the usual local client.
+    if (!Server->listen(QHostAddress(QStringLiteral("127.0.0.1")), port))
     {
-        delete Server;
-        Server = nullptr;
-        return false;
+        if (!Server->listen(QHostAddress(QStringLiteral("::1")), port))
+        {
+            delete Server;
+            Server = nullptr;
+            return false;
+        }
     }
     return true;
 }
