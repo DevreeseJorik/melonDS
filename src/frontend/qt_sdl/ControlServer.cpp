@@ -23,6 +23,8 @@
 #include "ARMDisassembler.h"
 #include "NDS.h"
 #include "ARM.h"
+#include "ARMJIT.h"
+#include "ARMJIT_Memory.h"
 
 #include <QJsonDocument>
 #include <QTimer>
@@ -31,11 +33,47 @@
 #include <QFileInfo>
 
 #include <algorithm>
+#include <cstring>
 #include <string>
 
 using namespace melonDS;
 
 static constexpr int MaxMemoryTransferBytes = 1024 * 1024; // 1 MiB
+
+// ARM9Write8's per-byte loop (used below for the general case) does a real,
+// correct JIT-invalidation check on every single call
+// (JIT.CheckAndInvalidate in NDS::ARM9Write8) -- fine for the small pokes
+// this command was originally used for, but a large write (tested: reliably
+// at >=1MiB, regardless of whether it's one call or several chunked ones)
+// left the guest crashing into an undefined-instruction trap the moment
+// execution resumed, consistent with something going wrong under ~1M
+// back-to-back individual invalidation checks while paused rather than any
+// actual content dependency (confirmed by writing the same size/count to
+// otherwise-unrelated memory and seeing the same failure). Bulk-copying
+// into MainRAM directly and invalidating once per 16-byte block (matching
+// ARMJIT::InvalidateByAddr's own bitmask granularity) instead of once per
+// *byte* cuts the invalidation-call count 16x and reliably avoids it.
+static bool writeMainRamFast(NDS* nds, uint32_t addr, const QByteArray& data)
+{
+    if ((addr & 0xFF000000) != 0x02000000) return false;
+
+    uint32_t start = addr & nds->MainRAMMask;
+    uint32_t len = (uint32_t)data.size();
+    // Refuse (fall back to the safe per-byte path) if the range would wrap
+    // past the Main RAM mirror boundary -- ARM9Write8 masks each byte's
+    // address individually, so a wrapping range isn't a plain contiguous
+    // memcpy target the way a non-wrapping one is.
+    if ((u64)start + len > (u64)nds->MainRAMMask + 1) return false;
+
+    memcpy(nds->MainRAM + start, data.constData(), len);
+
+    uint32_t alignedStart = addr & ~0xFu;
+    uint32_t alignedEnd = (addr + len + 0xF) & ~0xFu;
+    for (uint32_t a = alignedStart; a < alignedEnd; a += 16)
+        nds->JIT.CheckAndInvalidate<0, ARMJIT_Memory::memregion_MainRAM>(a);
+
+    return true;
+}
 
 ControlServer::ControlServer(EmuInstance* inst, QObject* parent)
     : QObject(parent), Inst(inst)
@@ -438,10 +476,13 @@ QJsonObject ControlServer::cmdWriteMemory(const QJsonObject& req)
     if (data.isEmpty())          return {{"error", "empty data"}};
     if (data.size() > MaxMemoryTransferBytes)   return {{"error", "data too large (max MaxMemoryTransferBytes bytes)"}};
 
-    for (int i = 0; i < data.size(); i++)
+    if (cpu != 0 || !writeMainRamFast(nds, addr, data))
     {
-        if (cpu == 0) nds->ARM9Write8(addr + i, (uint8_t)data[i]);
-        else          nds->ARM7Write8(addr + i, (uint8_t)data[i]);
+        for (int i = 0; i < data.size(); i++)
+        {
+            if (cpu == 0) nds->ARM9Write8(addr + i, (uint8_t)data[i]);
+            else          nds->ARM7Write8(addr + i, (uint8_t)data[i]);
+        }
     }
     return {};
 }
@@ -602,10 +643,13 @@ QJsonObject ControlServer::cmdWriteMulti(const QJsonObject& req)
         if (data.isEmpty())        return {{"error", QString("region addr=%1: empty data").arg(fmtHex32(addr))}};
         if (data.size() > MaxMemoryTransferBytes) return {{"error", QString("region addr=%1: data too large").arg(fmtHex32(addr))}};
 
-        for (int i = 0; i < data.size(); i++)
+        if (cpu != 0 || !writeMainRamFast(nds, addr, data))
         {
-            if (cpu == 0) nds->ARM9Write8(addr + i, (uint8_t)data[i]);
-            else          nds->ARM7Write8(addr + i, (uint8_t)data[i]);
+            for (int i = 0; i < data.size(); i++)
+            {
+                if (cpu == 0) nds->ARM9Write8(addr + i, (uint8_t)data[i]);
+                else          nds->ARM7Write8(addr + i, (uint8_t)data[i]);
+            }
         }
     }
 
