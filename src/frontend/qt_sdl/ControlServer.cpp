@@ -162,6 +162,7 @@ void ControlServer::dispatchCommand(QTcpSocket* client, const QJsonObject& req)
     else if (cmd == "clear_breakpoints") result = cmdClearBreakpoints(req);
     else if (cmd == "list_breakpoints")  result = cmdListBreakpoints(req);
     else if (cmd == "get_registers")     result = cmdGetRegisters(req);
+    else if (cmd == "set_registers")     result = cmdSetRegisters(req);
     else if (cmd == "get_spu_channels")  result = cmdGetSpuChannels(req);
     else if (cmd == "read_memory")       result = cmdReadMemory(req);
     else if (cmd == "write_memory")      result = cmdWriteMemory(req);
@@ -385,6 +386,25 @@ QJsonObject ControlServer::cmdGetRegisters(const QJsonObject& req)
         regs[QString("r%1").arg(i)] = QString("0x%1").arg(arm->R[i], 8, 16, QChar('0'));
     regs["cpsr"] = QString("0x%1").arg(arm->CPSR, 8, 16, QChar('0'));
     return {{"regs", regs}};
+}
+
+QJsonObject ControlServer::cmdSetRegisters(const QJsonObject& req)
+{
+    NDS* nds = Inst->getNDS();
+    if (!nds) return {{"error", "emulator not active"}};
+    if (Inst->getEmuThread()->emuIsRunning()) return {{"error", "emulator must be paused"}};
+
+    int cpu = req["cpu"].toInt(0);
+    ARM* arm = (cpu == 0) ? (ARM*)&nds->ARM9 : (ARM*)&nds->ARM7;
+
+    QJsonObject regs = req["regs"].toObject();
+    for (int i = 0; i < 16; i++)
+    {
+        QString key = QString("r%1").arg(i);
+        if (regs.contains(key)) arm->R[i] = parseAddr(regs[key]);
+    }
+    if (regs.contains("cpsr")) arm->CPSR = parseAddr(regs["cpsr"]);
+    return {};
 }
 
 QJsonObject ControlServer::cmdReadMemory(const QJsonObject& req)
