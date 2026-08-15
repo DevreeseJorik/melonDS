@@ -95,6 +95,7 @@ private:
     QJsonObject cmdClearBreakpoints(const QJsonObject& req);
     QJsonObject cmdListBreakpoints (const QJsonObject& req);
     QJsonObject cmdGetRegisters   (const QJsonObject& req);
+    QJsonObject cmdGetSpuChannels (const QJsonObject& req);
     QJsonObject cmdReadMemory     (const QJsonObject& req);
     QJsonObject cmdWriteMemory    (const QJsonObject& req);
     QJsonObject cmdReadU8         (const QJsonObject& req);

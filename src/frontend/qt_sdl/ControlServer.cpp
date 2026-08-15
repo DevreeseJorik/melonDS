@@ -162,6 +162,7 @@ void ControlServer::dispatchCommand(QTcpSocket* client, const QJsonObject& req)
     else if (cmd == "clear_breakpoints") result = cmdClearBreakpoints(req);
     else if (cmd == "list_breakpoints")  result = cmdListBreakpoints(req);
     else if (cmd == "get_registers")     result = cmdGetRegisters(req);
+    else if (cmd == "get_spu_channels")  result = cmdGetSpuChannels(req);
     else if (cmd == "read_memory")       result = cmdReadMemory(req);
     else if (cmd == "write_memory")      result = cmdWriteMemory(req);
     else if (cmd == "read_u8")           result = cmdReadU8(req);
@@ -426,6 +427,39 @@ QJsonObject ControlServer::cmdWriteMemory(const QJsonObject& req)
 }
 
 static QString fmtHex32(uint32_t v) { return QString("0x%1").arg(v, 8, 16, QChar('0')); }
+
+QJsonObject ControlServer::cmdGetSpuChannels(const QJsonObject& req)
+{
+    NDS* nds = Inst->getNDS();
+    if (!nds) return {{"error", "emulator not active"}};
+    if (Inst->getEmuThread()->emuIsRunning()) return {{"error", "emulator must be paused"}};
+
+    // Ground-truth internal channel state, read directly from melonDS's own
+    // SPUChannel objects rather than via emulated register reads -- added
+    // because SOUNDxSAD/SOUNDxTMR read back as 0/stale through the normal
+    // ARM7Read* path (write-only hardware registers on real DS), so guest-
+    // side introspection of "what did that write actually program" doesn't
+    // work. This bypasses that entirely.
+    int only = req.contains("channel") ? req["channel"].toInt(-1) : -1;
+    QJsonArray arr;
+    for (int i = 0; i < 16; i++)
+    {
+        if (only >= 0 && i != only) continue;
+        const SPUChannel& ch = nds->SPU.GetChannel((u32)i);
+        QJsonObject o;
+        o["channel"]     = i;
+        o["cnt"]         = fmtHex32(ch.Cnt);
+        o["src_addr"]    = fmtHex32(ch.SrcAddr);
+        o["timer_reload"]= ch.TimerReload;
+        o["loop_pos"]    = (double)ch.LoopPos;
+        o["length"]      = (double)ch.Length;
+        o["pos"]         = (double)ch.Pos;
+        o["timer"]       = (double)ch.Timer;
+        o["key_on"]      = (bool)(ch.Cnt & (1u<<31));
+        arr.append(o);
+    }
+    return {{"channels", arr}};
+}
 
 QJsonObject ControlServer::cmdReadU8(const QJsonObject& req)
 {

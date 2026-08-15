@@ -263,6 +263,8 @@ public:
     void Write16(u32 addr, u16 val);
     void Write32(u32 addr, u32 val);
 
+    const SPUChannel& GetChannel(u32 num) const { return Channels[num]; }
+
 private:
     u32 OutputBufferSize = 0;
     double OutputSampleRate;
