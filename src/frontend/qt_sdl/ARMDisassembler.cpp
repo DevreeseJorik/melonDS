@@ -519,7 +519,7 @@ DisasmResult DisassembleThumb(uint32_t addr, uint16_t instr, uint16_t next, bool
     if ((instr & 0xFC00) == 0x4400)
     {
         int op=(instr>>8)&3;
-        int rs=((instr>>3)&7)|((instr>>6)&8);
+        int rs=(instr>>3)&0xF;
         int rd=(instr&7)|((instr>>4)&8);
         constexpr const char* hops[] = {"ADD","CMP","MOV"};
         if (op < 3)
