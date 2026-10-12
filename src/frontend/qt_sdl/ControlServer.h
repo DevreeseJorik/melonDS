@@ -79,6 +79,7 @@ private:
     static uint32_t parseButtonBits(const QJsonArray& buttons);
 
     QJsonObject cmdEmuStatus      (const QJsonObject& req);
+    QJsonObject cmdScreenshot     (const QJsonObject& req);
     QJsonObject cmdPause          (const QJsonObject& req);
     QJsonObject cmdResume         (const QJsonObject& req);
     QJsonObject cmdReset          (const QJsonObject& req);

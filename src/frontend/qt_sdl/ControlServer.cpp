@@ -31,6 +31,7 @@
 #include <QHostAddress>
 #include <QDir>
 #include <QFileInfo>
+#include <QImage>
 
 #include <algorithm>
 #include <cstring>
@@ -192,6 +193,7 @@ void ControlServer::dispatchCommand(QTcpSocket* client, const QJsonObject& req)
 
     QJsonObject result;
     if      (cmd == "emu_status")        result = cmdEmuStatus(req);
+    else if (cmd == "screenshot")        result = cmdScreenshot(req);
     else if (cmd == "pause")             result = cmdPause(req);
     else if (cmd == "resume")            result = cmdResume(req);
     else if (cmd == "reset")             result = cmdReset(req);
@@ -267,6 +269,31 @@ QJsonObject ControlServer::cmdEmuStatus(const QJsonObject&)
     else if (t->emuIsRunning())    s = "running";
     else                           s = "paused";
     return {{"status", s}};
+}
+
+QJsonObject ControlServer::cmdScreenshot(const QJsonObject& req)
+{
+    QString path = req["path"].toString();
+    if (path.isEmpty()) return {{"error", "missing path"}};
+    NDS* nds = Inst->getNDS();
+    if (!nds) return {{"error", "no emulator running"}};
+
+    EmuThread* thread = Inst->getEmuThread();
+    thread->frontBufferLock.lock();
+    int frontbuf = thread->frontBuffer;
+    if (!nds->GPU.Framebuffer[frontbuf][0] || !nds->GPU.Framebuffer[frontbuf][1])
+    {
+        thread->frontBufferLock.unlock();
+        return {{"error", "no framebuffers available"}};
+    }
+
+    // top screen above the bottom screen, 256x384
+    QImage img(256, 384, QImage::Format_RGB32);
+    memcpy(img.bits(), nds->GPU.Framebuffer[frontbuf][0].get(), 256 * 192 * 4);
+    memcpy(img.bits() + 256 * 192 * 4, nds->GPU.Framebuffer[frontbuf][1].get(), 256 * 192 * 4);
+    thread->frontBufferLock.unlock();
+    if (!img.save(path)) return {{"error", "failed to save " + path}};
+    return {{"path", path}};
 }
 
 QJsonObject ControlServer::cmdPause(const QJsonObject&)
