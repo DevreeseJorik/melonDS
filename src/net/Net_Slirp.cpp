@@ -70,6 +70,37 @@ int clock_gettime(int, struct timespec *spec)
 
 #endif // __WIN32__
 
+// Debug aid: when MELONDS_SLIRP_PCAP names a file, every frame exchanged
+// with the emulated DS is written there in pcap format.
+static FILE* PcapFile = nullptr;
+static bool PcapChecked = false;
+
+static void PcapWrite(const void* buf, size_t len)
+{
+    if (!PcapChecked)
+    {
+        PcapChecked = true;
+        const char* path = getenv("MELONDS_SLIRP_PCAP");
+        if (path && *path)
+        {
+            PcapFile = fopen(path, "wb");
+            if (PcapFile)
+            {
+                const u32 hdr[6] = {0xA1B2C3D4, 0x00040002, 0, 0, 65535, 1}; // ethernet
+                fwrite(hdr, sizeof(hdr), 1, PcapFile);
+            }
+        }
+    }
+    if (!PcapFile) return;
+
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    const u32 rec[4] = {(u32)ts.tv_sec, (u32)(ts.tv_nsec / 1000), (u32)len, (u32)len};
+    fwrite(rec, sizeof(rec), 1, PcapFile);
+    fwrite(buf, len, 1, PcapFile);
+    fflush(PcapFile);
+}
+
 
 ssize_t Net_Slirp::SlirpCbSendPacket(const void* buf, size_t len, void* opaque) noexcept
 {
@@ -80,6 +111,8 @@ ssize_t Net_Slirp::SlirpCbSendPacket(const void* buf, size_t len, void* opaque) 
     }
 
     Log(LogLevel::Debug, "slirp: response packet of %zu bytes, type %04X\n", len, ntohs(((u16*)buf)[6]));
+
+    PcapWrite(buf, len);
 
     Net_Slirp& self = *static_cast<Net_Slirp*>(opaque);
     if (self.Callback)
@@ -360,6 +393,7 @@ void Net_Slirp::HandleDNSFrame(u8* data, int len) noexcept
     u32 framelen = (u32)(out - &resp[0]);
     if (framelen & 1) { *out++ = 0; framelen++; }
     FinishUDPFrame(resp, framelen);
+    PcapWrite(resp, framelen);
 
     if (Callback)
         Callback(resp, framelen);
@@ -374,6 +408,8 @@ int Net_Slirp::SendPacket(u8* data, int len) noexcept
         Log(LogLevel::Error, "Net_SendPacket: error: packet too long (%d)\n", len);
         return 0;
     }
+
+    PcapWrite(data, len);
 
     u16 ethertype = ntohs(*(u16*)&data[0xC]);
 
